@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Videoss — Video Downloader</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <style>
+    @keyframes fade-in { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+    .animate-fade-in { animation: fade-in .35s ease-out; }
+  </style>
+</head>
+<body class="min-h-screen bg-white">
+  <div id="root"></div>
+
+  <script>
+    const { useState, useEffect } = React;
+
+    // Change this to your backend URL after deploying (e.g. https://videoss-api.onrender.com)
+    const API_BASE = 'https://videoss-r3zw.onrender.com';
+
+    function VideossFrontend() {
+      const [url, setUrl] = useState('');
+      const [isCaptchaVerified, setIsCaptchaVerified] = useState(false);
+      const [loading, setLoading] = useState(false);
+      const [videoData, setVideoData] = useState(null);
+      const [showAuthModal, setShowAuthModal] = useState(false);
+      const [authMode, setAuthMode] = useState('signup');
+      const [formData, setFormData] = useState({ name:'', email:'', password:'' });
+      const [user, setUser] = useState(null);
+      const [authLoading, setAuthLoading] = useState(false);
+      const [errorMsg, setErrorMsg] = useState('');
+
+      // Restore user from localStorage on load
+      useEffect(() => {
+        const token = localStorage.getItem('videoss_token');
+        const savedUser = localStorage.getItem('videoss_user');
+        if (token && savedUser) {
+          try {
+            setUser(JSON.parse(savedUser));
+          } catch {}
+        }
+      }, []);
+
+      const handleFetchVideo = async (e) => {
+        e.preventDefault();
+        if (!url) return alert('Please enter a video link!');
+        if (!isCaptchaVerified) return alert('Please check "I am not a robot"!');
+        setLoading(true);
+        setVideoData(null);
+        setErrorMsg('');
+
+        try {
+          const res = await fetch(`${API_BASE}/api/video/fetch`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url })
+          });
+          const json = await res.json();
+
+          if (!res.ok || !json.success) {
+            throw new Error(json.message || 'Failed to fetch video');
+          }
+
+          setVideoData(json.data);
+        } catch (err) {
+          console.error(err);
+          setErrorMsg(err.message || 'Could not reach the server. Is the backend running?');
+          alert(err.message || 'Could not reach the server. Make sure the backend is running on port 5000.');
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const handleAuthSubmit = async (e) => {
+        e.preventDefault();
+        setAuthLoading(true);
+        setErrorMsg('');
+
+        try {
+          const endpoint = authMode === 'signup' ? '/api/auth/signup' : '/api/auth/login';
+          const body = authMode === 'signup'
+            ? { name: formData.name, email: formData.email, password: formData.password }
+            : { email: formData.email, password: formData.password };
+
+          const res = await fetch(`${API_BASE}${endpoint}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          });
+          const json = await res.json();
+
+          if (!res.ok || !json.success) {
+            throw new Error(json.message || 'Authentication failed');
+          }
+
+          // Save token + user
+          localStorage.setItem('videoss_token', json.data.token);
+          localStorage.setItem('videoss_user', JSON.stringify(json.data.user));
+          setUser(json.data.user);
+          setShowAuthModal(false);
+          setFormData({ name: '', email: '', password: '' });
+          alert(authMode === 'signup' ? 'Account created successfully!' : 'Welcome back!');
+        } catch (err) {
+          setErrorMsg(err.message);
+          alert(err.message);
+        } finally {
+          setAuthLoading(false);
+        }
+      };
+
+      const handleLogout = () => {
+        localStorage.removeItem('videoss_token');
+        localStorage.removeItem('videoss_user');
+        setUser(null);
+      };
+
+      return React.createElement('div', {className:'min-h-screen bg-white text-slate-900 font-sans flex flex-col justify-between'},
+        React.createElement('header', {className:'border-b border-slate-100 sticky top-0 bg-white/90 backdrop-blur-md z-40'},
+          React.createElement('div', {className:'max-w-6xl mx-auto px-4 h-16 flex items-center justify-between'},
+            React.createElement('div',{className:'flex items-center space-x-2'},
+              React.createElement('div',{className:'w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-md shadow-indigo-100'},'V'),
+              React.createElement('span',{className:'text-2xl font-extrabold tracking-tight bg-gradient-to-r from-slate-900 to-indigo-600 bg-clip-text text-transparent'},'Videoss')
+            ),
+            React.createElement('div',{className:'flex items-center space-x-3'},
+              user
+                ? React.createElement(React.Fragment, null,
+                    React.createElement('span',{className:'text-sm font-medium text-slate-600'},'Hi, ' + (user.name || user.email.split('@')[0])),
+                    React.createElement('button',{onClick:handleLogout,className:'px-4 py-2 text-sm font-semibold text-slate-700 hover:text-red-600 transition'},'Log Out')
+                  )
+                : React.createElement(React.Fragment, null,
+                    React.createElement('button',{onClick:()=>{setAuthMode('login');setShowAuthModal(true)},className:'px-4 py-2 text-sm font-semibold text-slate-700 hover:text-indigo-600 transition'},'Log In'),
+                    React.createElement('button',{onClick:()=>{setAuthMode('signup');setShowAuthModal(true)},className:'px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md shadow-indigo-100 transition'},'Sign Up Free')
+                  )
+            )
+          )
+        ),
+
+        React.createElement('main',{className:'max-w-4xl mx-auto px-4 py-12 flex-1 w-full'},
+          React.createElement('div',{className:'text-center space-y-3 mb-8'},
+            React.createElement('span',{className:'inline-block px-3 py-1 bg-indigo-50 text-indigo-600 text-xs font-bold uppercase tracking-wider rounded-full border border-indigo-100'},'Fast • Free • Secure'),
+            React.createElement('h1',{className:'text-4xl sm:text-5xl font-black text-slate-900 tracking-tight'},'Download Any Video in 1-Click'),
+            React.createElement('p',{className:'text-slate-500 text-base max-w-lg mx-auto'},'Paste link from Instagram, YouTube, Facebook, TikTok or 100+ platforms.')
+          ),
+
+          React.createElement('div',{className:'bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-xl shadow-slate-100 mb-8'},
+            React.createElement('form',{onSubmit:handleFetchVideo,className:'space-y-4'},
+              React.createElement('div',{className:'flex flex-col sm:flex-row gap-3'},
+                React.createElement('input',{type:'url',placeholder:'Paste video link here (e.g. https://instagram.com/reel/...)',value:url,onChange:e=>setUrl(e.target.value),className:'flex-1 px-4 py-3.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-slate-800 placeholder-slate-400 text-sm sm:text-base transition'}),
+                React.createElement('button',{type:'submit',disabled:loading,className:'px-8 py-3.5 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold rounded-xl shadow-md shadow-indigo-200 transition disabled:opacity-50 flex items-center justify-center min-w-[140px]'},
+                  loading ? React.createElement('div',{className:'w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin'}) : 'Download'
+                )
+              ),
+              React.createElement('div',{className:'flex items-center justify-between bg-slate-50 border border-slate-200 p-3 rounded-xl max-w-md mx-auto mt-4'},
+                React.createElement('label',{className:'flex items-center space-x-3 cursor-pointer'},
+                  React.createElement('input',{type:'checkbox',checked:isCaptchaVerified,onChange:e=>setIsCaptchaVerified(e.target.checked),className:'w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer'}),
+                  React.createElement('span',{className:'text-sm font-medium text-slate-700'},'I am not a robot')
+                ),
+                React.createElement('div',{className:'flex items-center space-x-1 text-slate-400 text-xs'},
+                  React.createElement('span',{className:'text-emerald-500 text-base'},'✓'),
+                  React.createElement('span',null,'Protected by Turnstile')
+                )
+              )
+            ),
+            React.createElement('div',{className:'flex items-center justify-center space-x-2 mt-4 text-xs text-slate-500'},
+              React.createElement('span',null,'Try sample:'),
+              React.createElement('button',{onClick:()=>{setUrl('https://www.instagram.com/reel/sample123');setIsCaptchaVerified(true)},className:'text-indigo-600 hover:underline font-medium'},'Instagram Reel'),
+              React.createElement('span',null,'•'),
+              React.createElement('button',{onClick:()=>{setUrl('https://youtube.com/shorts/sample456');setIsCaptchaVerified(true)},className:'text-indigo-600 hover:underline font-medium'},'YouTube Short')
+            )
+          ),
+
+          videoData && React.createElement('div',{className:'bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-lg animate-fade-in flex flex-col md:flex-row gap-6 items-center'},
+            React.createElement('div',{className:'relative w-full md:w-64 h-44 rounded-xl overflow-hidden bg-slate-200 border border-slate-300 flex-shrink-0'},
+              React.createElement('img',{src:videoData.thumbnail,alt:'Thumbnail',className:'w-full h-full object-cover'}),
+              React.createElement('span',{className:'absolute bottom-2 right-2 bg-black/80 text-white text-xs px-2 py-0.5 rounded font-mono'},videoData.duration),
+              React.createElement('span',{className:'absolute top-2 left-2 bg-indigo-600 text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase'},videoData.platform)
+            ),
+            React.createElement('div',{className:'flex-1 space-y-4 w-full'},
+              React.createElement('h3',{className:'font-bold text-slate-800 text-base md:text-lg'},videoData.title),
+              React.createElement('div',{className:'space-y-2'},
+                videoData.links.map((link,idx)=>React.createElement('div',{key:idx,className:'flex items-center justify-between bg-white border border-slate-200 p-2.5 rounded-xl hover:border-indigo-300 transition'},
+                  React.createElement('div',null,
+                    React.createElement('p',{className:'text-xs font-bold text-slate-800'},link.quality),
+                    React.createElement('p',{className:'text-[11px] text-slate-400'},link.size)
+                  ),
+                  React.createElement('button',{onClick:()=>alert('Downloading: '+link.quality),className:'px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition'},'Download')
+                ))
+              )
+            )
+          ),
+
+          React.createElement('div',{className:'mt-16 text-center'},
+            React.createElement('p',{className:'text-xs font-bold text-slate-400 uppercase tracking-widest mb-6'},'Supported Platforms'),
+            React.createElement('div',{className:'flex flex-wrap justify-center items-center gap-6 opacity-75'},
+              ['Instagram','YouTube','Facebook','TikTok','X (Twitter)','Vimeo'].map(item=>React.createElement('span',{key:item,className:'px-4 py-2 bg-slate-100 text-slate-600 rounded-lg text-xs font-semibold border border-slate-200'},item))
+            )
+          )
+        ),
+
+        React.createElement('footer',{className:'border-t border-slate-100 py-6 text-center text-xs text-slate-400 bg-white'},'© 2026 Videoss Inc. All rights reserved. • Terms & Privacy'),
+
+        showAuthModal && React.createElement('div',{className:'fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4'},
+          React.createElement('div',{className:'bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative space-y-6'},
+            React.createElement('button',{onClick:()=>setShowAuthModal(false),className:'absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-lg font-bold'},'✕'),
+            React.createElement('div',{className:'text-center space-y-2'},
+              React.createElement('h2',{className:'text-2xl font-extrabold text-slate-900'},authMode==='signup'?'Create a Videoss Account':'Welcome Back'),
+              React.createElement('div',{className:'flex justify-center border-b border-slate-100 pt-2'},
+                React.createElement('button',{onClick:()=>setAuthMode('signup'),className:`pb-2 px-4 text-sm font-bold border-b-2 transition ${authMode==='signup'?'border-indigo-600 text-indigo-600':'border-transparent text-slate-400'}`},'Sign Up'),
+                React.createElement('button',{onClick:()=>setAuthMode('login'),className:`pb-2 px-4 text-sm font-bold border-b-2 transition ${authMode==='login'?'border-indigo-600 text-indigo-600':'border-transparent text-slate-400'}`},'Log In')
+              )
+            ),
+            React.createElement('div',{className:'space-y-2.5'},
+              React.createElement('button',{onClick:()=>alert('Google Auth Simulated'),className:'w-full py-2.5 px-4 border border-slate-300 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-50 transition'},'🌐  Continue with Google'),
+              React.createElement('button',{onClick:()=>alert('Facebook Auth Simulated'),className:'w-full py-2.5 px-4 bg-[#1877F2] hover:bg-[#166fe5] text-white rounded-xl text-sm font-semibold transition'},'Continue with Facebook')
+            ),
+            React.createElement('div',{className:'flex items-center my-4'},
+              React.createElement('div',{className:'flex-1 border-t border-slate-200'}),
+              React.createElement('span',{className:'px-3 text-xs text-slate-400 font-medium'},'OR EMAIL'),
+              React.createElement('div',{className:'flex-1 border-t border-slate-200'})
+            ),
+            React.createElement('form',{onSubmit:handleAuthSubmit,className:'space-y-3'},
+              authMode==='signup' && React.createElement('div',null,
+                React.createElement('label',{className:'block text-xs font-bold text-slate-700 mb-1'},'Full Name'),
+                React.createElement('input',{type:'text',required:true,placeholder:'John Doe',value:formData.name,onChange:e=>setFormData({...formData,name:e.target.value}),className:'w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500'})
+              ),
+              React.createElement('div',null,
+                React.createElement('label',{className:'block text-xs font-bold text-slate-700 mb-1'},'Email Address'),
+                React.createElement('input',{type:'email',required:true,placeholder:'name@example.com',value:formData.email,onChange:e=>setFormData({...formData,email:e.target.value}),className:'w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500'})
+              ),
+              React.createElement('div',null,
+                React.createElement('label',{className:'block text-xs font-bold text-slate-700 mb-1'},'Password'),
+                React.createElement('input',{type:'password',required:true,placeholder:'••••••••',value:formData.password,onChange:e=>setFormData({...formData,password:e.target.value}),className:'w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500'})
+              ),
+              errorMsg && React.createElement('p',{className:'text-xs text-red-500 font-medium'},errorMsg),
+              React.createElement('button',{type:'submit',disabled:authLoading,className:'w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm shadow-md shadow-indigo-100 transition mt-2 disabled:opacity-60'},
+                authLoading ? 'Please wait...' : (authMode==='signup'?'Create Account':'Log In')
+              )
+            )
+          )
+        )
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(VideossFrontend));
+  </script>
+</body>
+</html>
