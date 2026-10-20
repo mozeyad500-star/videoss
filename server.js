@@ -30,6 +30,9 @@ if (!JWT_SECRET || JWT_SECRET.length < 32) {
 app.disable("x-powered-by");
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 app.use(cors({ origin: FRONTEND_ORIGIN.split(",").map(s => s.trim()), methods: ["GET","POST","PUT"], allowedHeaders: ["Content-Type","Authorization"] }));
+app.get('/', (req, res) => {
+  res.send('Videoss Backend is running successfully!');
+});
 app.use(express.json({ limit: "20kb" }));
 app.use(rateLimit({ windowMs: 60_000, limit: 60, standardHeaders: "draft-7", legacyHeaders: false }));
 
