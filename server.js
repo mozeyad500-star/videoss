@@ -131,9 +131,18 @@ app.post("/api/video/fetch", async (req, res) => {
   try {
     const { url } = req.body;
     if (!url) return res.status(400).json({ error: "URL is required" });
-    const output = await runYtDlp([url, "--dump-json"]);
+
+    // Node JS runtime specify karein aur YouTube client override karein
+    const output = await runYtDlp([
+      url,
+      "--dump-json",
+      "--js-runtimes", "node",
+      "--extractor-args", "youtube:player_client=android,web"
+    ]);
+
     return res.json(JSON.parse(output));
   } catch (err) {
+    console.error("yt-dlp Error:", err.message);
     return res.status(500).json({ error: err.message || "Failed to fetch video" });
   }
 });
