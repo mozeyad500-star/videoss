@@ -14,6 +14,7 @@ import os from "node:os";
 import crypto from "node:crypto";
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = Number(process.env.PORT || 3000);
 const JWT_SECRET = process.env.JWT_SECRET;
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "http://localhost:5500";
