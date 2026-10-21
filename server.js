@@ -132,17 +132,16 @@ app.post("/api/video/fetch", async (req, res) => {
     const { url } = req.body;
     if (!url) return res.status(400).json({ error: "URL is required" });
 
-    // Node JS runtime specify karein aur YouTube client override karein
+    // YouTube bot detection bypass karne ke liye parameters
     const output = await runYtDlp([
       url,
       "--dump-json",
-      "--js-runtimes", "node",
-      "--extractor-args", "youtube:player_client=android,web"
+      "--extractor-args", "youtube:player_client=android,mweb"
     ]);
 
     return res.json(JSON.parse(output));
   } catch (err) {
-    console.error("yt-dlp Error:", err.message);
+    console.error("yt-dlp Error Details:", err.message);
     return res.status(500).json({ error: err.message || "Failed to fetch video" });
   }
 });
