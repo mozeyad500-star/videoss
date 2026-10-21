@@ -127,7 +127,16 @@ function runYtDlp(args) {
 }
 
 app.get("/api/health", (_req, res) => res.json({ ok: true, service: "Videoss API", videoEngineMode: process.env.YTDLP_MODE === "python" ? "python-module" : "binary" }));
-
+app.post("/api/video/fetch", async (req, res) => {
+  try {
+    const { url } = req.body;
+    if (!url) return res.status(400).json({ error: "URL is required" });
+    const output = await runYtDlp([url, "--dump-json"]);
+    return res.json(JSON.parse(output));
+  } catch (err) {
+    return res.status(500).json({ error: err.message || "Failed to fetch video" });
+  }
+});
 // Admin account is provisioned through Render environment variables, never through public signup.
 app.post("/api/admin/login", rateLimit({ windowMs: 15 * 60_000, limit: 8 }), async (req, res) => {
   const email = String(req.body?.email || "").trim().toLowerCase();
